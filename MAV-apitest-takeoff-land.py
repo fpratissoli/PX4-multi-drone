@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#! /usr/bin/env python3
 
 import asyncio
 from mavsdk import System
@@ -8,13 +8,13 @@ async def main():
     await drone.connect()
 
     status_text_task = asyncio.ensure_future(print_status_text(drone))
-    
+
     print("Waiting for drone to connect...")
     async for state in drone.core.connection_state():
         if state.is_connected:
             print(f"-- Connected to drone!")
             break
-    
+
     print("Waiting for drone to have a global position estimate...")
     async for health in drone.telemetry.health():
         if health.is_global_position_ok and health.is_home_position_ok:
@@ -34,6 +34,15 @@ async def main():
     status_text_task.cancel()
 
 async def print_status_text(drone):
+    """
+    Prints the status text of the drone.
+
+    Args:
+        drone (Drone): The drone object.
+
+    Returns:
+        None
+    """
     async for status in drone.telemetry.status_text():
         print(status.text)
 
