@@ -6,8 +6,8 @@ import subprocess
 import os
 
 MAVSDK_SERVER_PATH = os.environ.get('MAVSDK_SERVER_PATH')
-GRPC_PORT_BASE = 50040
-UDP_PORT_BASE = 14540
+GRPC_PORT_BASE = 50041
+UDP_PORT_BASE = 14541
 NUM_AGENTS = 2
 
 def run_mavsdk_servers(num_agents):
