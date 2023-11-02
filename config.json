@@ -1,6 +1,7 @@
 {
+  "PX4_gazebo_path": "~/PX4-Autopilot/build/px4_sitl_default/bin/px4",
   "MavSdkServerPath": "~/.local/lib/python3.10/site-packages/mavsdk/bin/mavsdk_server",
   "GRPC_PORT_BASE": "50041",
   "UDP_PORT_BASE": "14541",
-  "NUM_DRONES": "1"
+  "NUM_DRONES": "2"
 }
