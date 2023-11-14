@@ -38,11 +38,12 @@ async def main():
 
     print("-- Orbiting")
     print("Do orbit at 10m height from the ground")
+    print("orbit_height: ", orbit_height)
     await drone.action.do_orbit(radius_m=10,
                                 velocity_ms=2,
                                 yaw_behavior=yaw_behavior,
-                                latitude_deg=39.006475,
-                                longitude_deg=16.953204,
+                                latitude_deg=47.398036222362471,
+                                longitude_deg=8.5450146439425509,
                                 absolute_altitude_m=orbit_height)
     
     await asyncio.sleep(60)
