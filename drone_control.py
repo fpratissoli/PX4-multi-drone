@@ -3,11 +3,23 @@
 import asyncio
 from mavsdk import System
 from mavsdk.action import OrbitYawBehavior
+from mavsdk import telemetry
+import json
+
+
+def read_config():
+    with open('config.json', 'r') as f:
+        config = json.load(f)
+    return config
+
 
 class Drone:
-    def __init__(self, grpc_portbase = 50041, udp_portbase = 14540):
-        self.system = System(mavsdk_server_address='localhost', port=grpc_portbase)
+    def __init__(self, grpc_portbase = 50051, udp_portbase = 14540):
+        self.system = System(mavsdk_server_address=None, port=grpc_portbase)
         self.connection_url = f'udp://:{udp_portbase}'
+
+    def __del__(self):
+        print("agent gets destroyed")
 
     async def connect(self):
         print("Connecting to drone...")
@@ -17,13 +29,6 @@ class Drone:
         await self.connect()
         print("Arming...")
         await self.system.action.arm()
-
-    async def takeoff(self, altitude):
-        await self.arm()
-        print(f"Taking off to {altitude} meters...")
-        await self.system.action.takeoff()
-        await asyncio.sleep(5)
-        await self.system.action.goto_location(0, 0, altitude, 0)
 
     async def takeoff(self):
         await self.arm()
@@ -38,6 +43,22 @@ class Drone:
         print("Landing...")
         await self.system.action.land()
 
+    async def disarm(self):
+        print("Disarming...")
+        await self.system.action.disarm()
+
+    async def cleanup(self):
+        print("Cleaning up...")
+        await self.system.action.land()
+
+        #check if drone is landed
+        async for landing_info in self.system.telemetry.landed_state():
+            if landing_info == telemetry.LandedState.ON_GROUND:
+                print("-- Drone has landed")
+                break
+
+        await self.system.action.disarm()
+
     async def print_status_text(self):
         """
         Prints the status text of the drone.
@@ -51,7 +72,7 @@ class Drone:
         async for status in self.system.telemetry.status_text():
             print(status.text)
 
-    
+
     async def run_goto(self, latitude_deg, longitude_deg, altitude_m, timeout=60):
         """
         Commands the drone to fly to a specified global position and altitude.
@@ -66,18 +87,29 @@ class Drone:
         Returns:
             None
         """
+
         print("Running goto...")
+        await self.connect()
+
         print("Waiting for drone to have a global position estimate...")
         async for health in self.system.telemetry.health():
             if health.is_global_position_ok and health.is_home_position_ok:
                 print("-- Global position estimate OK")
                 break
 
+        print("Fetching amsl altitude at home location....")
+        async for terrain_info in self.system.telemetry.home():
+            absolute_altitude = terrain_info.absolute_altitude_m
+            break
+
         print("-- Taking off")
         await self.takeoff()
 
-        print("-- Going to first point")
-        await self.system.action.goto_location(latitude_deg, longitude_deg, altitude_m, 0)
+        await asyncio.sleep(5)
+        # To fly drone 20m above the ground plane
+        flying_alt = absolute_altitude + altitude_m
+        print(f"-- Flying to {latitude_deg}, {longitude_deg}, {flying_alt}")
+        #await self.system.action.goto_location(latitude_deg, longitude_deg, flying_alt, 0)
 
         if timeout > 0:
             print("-- Starting a timer for %s seconds" % timeout)
@@ -85,7 +117,9 @@ class Drone:
 
             print("-- Landing")
             await self.return_to_launch()
-    
+
+        await self.cleanup()
+
     async def run_orbit(self, radius_m=10, velocity_ms=2, relative_altitude=10, timeout=60):
         """
         Runs an orbit mission for the drone.
@@ -128,16 +162,20 @@ class Drone:
         #await self.land()
 
 
-
 if __name__ == '__main__':
-    drone = Drone()
+    config = read_config()
+    drone = Drone(config['GRPC_PORT_BASE'], config['UDP_PORT_BASE'])
+
     #---to run single operations:
     #await drone.connect()
     #await drone.arm()
     #await drone.takeoff()
 
     #---to run a sequence of operations / tasks:
-    #asyncio.run(drone.run_orbit())
+    asyncio.run(drone.run_goto(47.397606, 8.543060, 20, 20))
+    #asyncio.get_event_loop().stop()
 
     #asyncio.ensure_future(drone.run_orbit())
     #asyncio.get_event_loop().run_forever()
+
+    del drone
