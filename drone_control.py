@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import asyncio
+import mavsdk
 from mavsdk import System
 from mavsdk.action import OrbitYawBehavior
 from mavsdk import telemetry
@@ -24,13 +25,25 @@ class Drone:
     async def connect(self):
         print("Connecting to drone...")
         await self.system.connect(system_address=self.connection_url)
+        async for state in self.system.core.connection_state():
+            if state.is_connected:
+                print("Drone connected!")
+                break
 
     async def arm(self):
-        await self.connect()
         print("Arming...")
-        await self.system.action.arm()
+        try:
+            await self.system.action.arm()
+        except mavsdk.ActionError as error:
+            print(f"Arming failed with error code: {error._result.result}")
+            print("-- Disarming")
+            await self.system.action.disarm()
+            await asyncio.sleep(2)
+            print("-- Arming done")
+            await self.system.action.arm()
 
     async def takeoff(self):
+        await self.connect()
         await self.arm()
         print("Taking off...")
         await self.system.action.takeoff()
@@ -106,10 +119,11 @@ class Drone:
         await self.takeoff()
 
         await asyncio.sleep(5)
-        # To fly drone 20m above the ground plane
+
+        # To fly drone m above the ground plane
         flying_alt = absolute_altitude + altitude_m
         print(f"-- Flying to {latitude_deg}, {longitude_deg}, {flying_alt}")
-        #await self.system.action.goto_location(latitude_deg, longitude_deg, flying_alt, 0)
+        await self.system.action.goto_location(latitude_deg, longitude_deg, flying_alt, 0)
 
         if timeout > 0:
             print("-- Starting a timer for %s seconds" % timeout)
@@ -120,7 +134,9 @@ class Drone:
 
         await self.cleanup()
 
-    async def run_orbit(self, radius_m=10, velocity_ms=2, relative_altitude=10, timeout=60):
+
+
+    async def run_orbit(self, radius_m=10, velocity_ms=2, relative_altitude=10, timeout=60, latitude_deg=0, longitude_deg=0):
         """
         Runs an orbit mission for the drone.
 
@@ -133,34 +149,51 @@ class Drone:
         Returns:
             None
         """
+
         print("Running orbit...")
+        await self.connect()
+
         print("Waiting for drone to have a global position estimate...")
         async for health in self.system.telemetry.health():
             if health.is_global_position_ok and health.is_home_position_ok:
                 print("-- Global position estimate OK")
                 break
-        
+
         position = await self.system.telemetry.position().__aiter__().__anext__()
         orbit_height = position.absolute_altitude_m+relative_altitude
         yaw_behavior = OrbitYawBehavior.HOLD_FRONT_TO_CIRCLE_CENTER
 
-        await self.takeoff(orbit_height)
-        
+        await self.takeoff()
+
+        await asyncio.sleep(10)
+
         print("-- Orbiting")
-        print(f"Do orbit at {orbit_height}m height from the ground")
-        await self.system.action.do_orbit(radius_m=radius_m,
-                                    velocity_ms=velocity_ms,
-                                    yaw_behavior=yaw_behavior,
-                                    latitude_deg=position.latitude_deg,
-                                    longitude_deg=position.longitude_deg,
-                                    absolute_altitude_m=orbit_height)
-        
+        print(f"Do orbit at {orbit_height} m height from the ground")
+        if latitude_deg == 0 and longitude_deg == 0:
+            await self.system.action.do_orbit(radius_m=radius_m,
+                                        velocity_ms=velocity_ms,
+                                        yaw_behavior=yaw_behavior,
+                                        latitude_deg=position.latitude_deg,
+                                        longitude_deg=position.longitude_deg,
+                                        absolute_altitude_m=orbit_height)
+        else:
+            await self.system.action.do_orbit(radius_m=radius_m,
+                                        velocity_ms=velocity_ms,
+                                        yaw_behavior=yaw_behavior,
+                                        latitude_deg=latitude_deg,
+                                        longitude_deg=longitude_deg,
+                                        absolute_altitude_m=orbit_height)
+
         await asyncio.sleep(timeout)
 
         print("-- Landing")
         await self.return_to_launch()
-        #await self.land()
 
+        #checl if drone is landed
+        async for landing_info in self.system.telemetry.landed_state():
+            if landing_info == telemetry.LandedState.ON_GROUND:
+                print("-- Drone has landed")
+                break
 
 if __name__ == '__main__':
     config = read_config()
@@ -172,10 +205,13 @@ if __name__ == '__main__':
     #await drone.takeoff()
 
     #---to run a sequence of operations / tasks:
-    asyncio.run(drone.run_goto(47.397606, 8.543060, 20, 20))
-    #asyncio.get_event_loop().stop()
+    #asyncio.run(drone.run_goto(47.397606, 8.543060, 20, 20))
 
-    #asyncio.ensure_future(drone.run_orbit())
-    #asyncio.get_event_loop().run_forever()
+    #---to run an orbit mission:
+    #asyncio.run(drone.run_orbit())
+    asyncio.run(drone.run_orbit(latitude_deg=47.397606, longitude_deg=8.543060))
+
+    #asyncio.get_event_loop().stop()
+    #asyncio.get_event_loop().close()
 
     del drone
