@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import asyncio
 from mavsdk import System
 from mavsdk import mission_raw

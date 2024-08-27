@@ -1,5 +1,3 @@
-#! /usr/bin/env python3
-
 import asyncio
 import mavsdk
 from mavsdk import System
@@ -43,7 +41,7 @@ class Drone:
             await self.system.action.arm()
 
     async def takeoff(self):
-        await self.connect()
+        #await self.connect()
         await self.arm()
         print("Taking off...")
         await self.system.action.takeoff()
@@ -60,8 +58,8 @@ class Drone:
         print("Disarming...")
         await self.system.action.disarm()
 
-    async def cleanup(self):
-        print("Cleaning up...")
+    async def safe_land_and_disarm(self):
+        print("Landing...")
         await self.system.action.land()
 
         #check if drone is landed
@@ -93,7 +91,7 @@ class Drone:
         Args:
             latitude_deg (float): The latitude of the target position in degrees. eg. 47.397606 
             longitude_deg (float): The longitude of the target position in degrees. eg. 8.543060
-            altitude_m (float): The altitude of the target position in meters.
+            altitude_m (float): The altitude of the target position in meters. eg. 20.0
             timeout (float): The maximum time to wait for the drone to reach the target position, in seconds. 
                 If set to 0 or a negative value, the drone will not wait and will immediately return to launch.
 
@@ -115,10 +113,12 @@ class Drone:
             absolute_altitude = terrain_info.absolute_altitude_m
             break
 
+        print(f"The detected altitude at home is {absolute_altitude} m from the ground")
+
         print("-- Taking off")
         await self.takeoff()
 
-        await asyncio.sleep(5)
+        await asyncio.sleep(10)
 
         # To fly drone m above the ground plane
         flying_alt = absolute_altitude + altitude_m
@@ -132,11 +132,13 @@ class Drone:
             print("-- Landing")
             await self.return_to_launch()
 
-        await self.cleanup()
+            #check if drone is landed
+            async for landing_info in self.system.telemetry.landed_state():
+                if landing_info == telemetry.LandedState.ON_GROUND:
+                    print("-- Drone has landed")
+                    break
 
-
-
-    async def run_orbit(self, radius_m=10, velocity_ms=2, relative_altitude=10, timeout=60, latitude_deg=0, longitude_deg=0):
+    async def run_orbit(self, radius_m=30, velocity_ms=2, relative_altitude=10, timeout=60, latitude_deg=0, longitude_deg=0):
         """
         Runs an orbit mission for the drone.
 
@@ -189,7 +191,7 @@ class Drone:
         print("-- Landing")
         await self.return_to_launch()
 
-        #checl if drone is landed
+        #check if drone is landed
         async for landing_info in self.system.telemetry.landed_state():
             if landing_info == telemetry.LandedState.ON_GROUND:
                 print("-- Drone has landed")
@@ -199,18 +201,22 @@ if __name__ == '__main__':
     config = read_config()
     drone = Drone(config['GRPC_PORT_BASE'], config['UDP_PORT_BASE'])
 
-    #---to run single operations:
+    #--- to run single operations:
     #await drone.connect()
     #await drone.arm()
     #await drone.takeoff()
 
-    #---to run a sequence of operations / tasks:
+    #--- to run a sequence of operations / tasks:
     #asyncio.run(drone.run_goto(47.397606, 8.543060, 20, 20))
 
-    #---to run an orbit mission:
+    #--- to run an orbit mission:
     #asyncio.run(drone.run_orbit())
-    asyncio.run(drone.run_orbit(latitude_deg=47.397606, longitude_deg=8.543060))
+    #asyncio.run(drone.run_orbit(latitude_deg=47.397606, longitude_deg=8.543060))
 
+    #--- to run a goto mission:
+    asyncio.run(drone.run_goto(47.397606, 8.543060, 20, 20))
+
+    #--- to stop the event loop
     #asyncio.get_event_loop().stop()
     #asyncio.get_event_loop().close()
 
