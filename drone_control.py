@@ -125,6 +125,10 @@ class Drone:
         print(f"-- Flying to {latitude_deg}, {longitude_deg}, {flying_alt}")
         await self.system.action.goto_location(latitude_deg, longitude_deg, flying_alt, 0)
 
+        #while True:
+        #    print("Staying connected, press Ctrl-C to exit")
+        #    await asyncio.sleep(1)
+
         if timeout > 0:
             print("-- Starting a timer for %s seconds" % timeout)
             await asyncio.sleep(timeout)
