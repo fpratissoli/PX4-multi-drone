@@ -4,18 +4,36 @@ from mavsdk import System
 from mavsdk.action import OrbitYawBehavior
 from mavsdk import telemetry
 import json
+import signal
 
 
 def read_config():
     with open('config.json', 'r') as f:
         config = json.load(f)
+
+    if config['Connection_type'].isupper():
+        config['Connection_type'] = config['Connection_type'].lower()
+
+    if config['Connection_type'] == 'udp':
+        config['Server_host_address'] = config['UDP_server_address']
+        config['Connection_port'] = config['UDP_PORT_BASE']
+    elif config['Connection_type'] == 'tcp':
+        config['Server_host_address'] = config['TCP_server_address']
+        config['Connection_port'] = config['TCP_PORT_BASE']
+    elif config['Connection_type'] == 'serial':
+        pass
+        #TODO: Implement serial connection
+    else:
+        print("Invalid connection_type specified in config.json")
+        # Handle the error or raise an exception
     return config
 
 
 class Drone:
-    def __init__(self, grpc_portbase = 50051, udp_portbase = 14540):
+    def __init__(self, grpc_portbase=50051, connection_type='udp', server_address='', portbase=14540):
         self.system = System(mavsdk_server_address=None, port=grpc_portbase)
-        self.connection_url = f'udp://:{udp_portbase}'
+        #default connection: udp://:14540 = udp://0.0.0.0:14540
+        self.connection_url = f'{connection_type}://{server_address}:{portbase}'
 
     def __del__(self):
         print("agent gets destroyed")
@@ -201,9 +219,18 @@ class Drone:
                 print("-- Drone has landed")
                 break
 
+def handle_interrupt(signal, frame):
+    print("Ctrl+C pressed. Stopping the drone...")
+    #TODO deal with stopping the drone
+
+signal.signal(signal.SIGINT, handle_interrupt)
+
 if __name__ == '__main__':
     config = read_config()
-    drone = Drone(config['GRPC_PORT_BASE'], config['UDP_PORT_BASE'])
+    drone = Drone(grpc_portbase=config['GRPC_PORT_BASE'],
+                  connection_type=config['Connection_type'],
+                  server_address=config['Server_host_address'],
+                  portbase=config['Connection_port'])
 
     #--- to run single operations:
     #await drone.connect()
