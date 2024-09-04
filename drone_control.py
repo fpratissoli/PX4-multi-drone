@@ -28,81 +28,155 @@ def read_config():
         # Handle the error or raise an exception
     return config
 
-
 class Drone:
-    def __init__(self, grpc_portbase=50051, connection_type='udp', server_address='', portbase=14540):
+    def __init__(self, id, grpc_portbase=50051, connection_type='udp', server_address='', portbase=14540):
+        self.id = id
         self.system = System(mavsdk_server_address=None, port=grpc_portbase)
-        #default connection: udp://:14540 = udp://0.0.0.0:14540
         self.connection_url = f'{connection_type}://{server_address}:{portbase}'
+        self.connection_type = connection_type
+        self.server_address = server_address
+        self.portbase = portbase
+        self.grpc_portbase = grpc_portbase
+        
+        # Drone state properties
+        self.is_connected = False
+        self.is_armed = False
+        self.in_air = False
+        self.latitude = None
+        self.longitude = None
+        self.absolute_altitude = None
+        self.relative_altitude = None
+        self.home_position = None
 
-    def __del__(self):
-        print("agent gets destroyed")
+    # getter methods -----------------------------------------------------------
+    def get_connection_info(self):
+        """Get the drone's connection information."""
+        return {
+            'connection_type': self.connection_type,
+            'server_address': self.server_address,
+            'portbase': self.portbase,
+            'grpc_portbase': self.grpc_portbase
+        }
+
+    def get_id(self):
+        """Get the drone's ID."""
+        return self.id
+
+    def get_connection_status(self):
+        """Get the drone's connection status."""
+        return self.is_connected
+
+    def get_armed_status(self):
+        """Get the drone's armed status."""
+        return self.is_armed
+
+    def get_flight_status(self):
+        """Get the drone's in-air status."""
+        return self.in_air
+
+    def get_position(self):
+        """Get the drone's current position."""
+        return {
+            'latitude': self.latitude,
+            'longitude': self.longitude,
+            'absolute_altitude': self.absolute_altitude,
+            'relative_altitude': self.relative_altitude
+        }
+
+    def get_home_position(self):
+        """Get the drone's home position."""
+        return self.home_position
+
+    # --------------------------------------------------------------------------
 
     async def connect(self):
-        print("Connecting to drone...")
+        print(f"Connecting to drone {self.id}...")
         await self.system.connect(system_address=self.connection_url)
         async for state in self.system.core.connection_state():
             if state.is_connected:
-                print("Drone connected!")
+                print(f"Drone {self.id} connected!")
+                self.is_connected = True
                 break
+        
+    async def _start_state_monitoring(self, print_status=False):
+        asyncio.ensure_future(self._monitor_armed(print_status))
+        asyncio.ensure_future(self._monitor_in_air(print_status))
+        asyncio.ensure_future(self._monitor_position(print_status))
+        asyncio.ensure_future(self._monitor_home(print_status))
+        print(f"Started monitoring drone {self.id} state ...")
+
+    async def _monitor_armed(self, print_status=False):
+        async for is_armed in self.system.telemetry.armed():
+            self.is_armed = is_armed
+            if print_status:
+                print(f"Drone {self.id} armed: {is_armed}")
+
+    async def _monitor_in_air(self, print_status=False):
+        async for in_air in self.system.telemetry.in_air():
+            self.in_air = in_air
+            if print_status:
+                print(f"Drone {self.id} in air: {in_air}")
+
+    async def _monitor_position(self, print_status=False):
+        async for position in self.system.telemetry.position():
+            self.latitude = position.latitude_deg
+            self.longitude = position.longitude_deg
+            self.absolute_altitude = position.absolute_altitude_m
+            self.relative_altitude = position.relative_altitude_m
+            if print_status:
+                print(f"Drone {self.id} position: ({self.latitude}, {self.longitude}, {self.absolute_altitude}, {self.relative_altitude})")
+
+    async def _monitor_home(self, print_status=False):
+        async for home in self.system.telemetry.home():
+            self.home_position = home
+            if print_status:
+                print(f"Drone {self.id} home position: ({home.latitude_deg}, {home.longitude_deg}, {home.absolute_altitude_m})")
 
     async def arm(self):
-        print("Arming...")
+        print(f"Arming drone {self.id}...")
         try:
             await self.system.action.arm()
         except mavsdk.ActionError as error:
-            print(f"Arming failed with error code: {error._result.result}")
-            print("-- Disarming")
-            await self.system.action.disarm()
+            print(f"Arming failed with error: {error}")
+            await self.disarm()
             await asyncio.sleep(2)
-            print("-- Arming done")
             await self.system.action.arm()
+        else:
+            self.is_armed = True
 
     async def takeoff(self):
-        #await self.connect()
+        if not self.is_connected:
+            await self.connect()
         await self.arm()
-        print("Taking off...")
+        print(f"Drone {self.id} taking off...")
         await self.system.action.takeoff()
+        self.in_air = True
+    
+    async def land(self):
+        print(f"Drone {self.id} landing...")
+        await self.system.action.land()
+        await self._wait_for_landed()
+        self.in_air = False
 
     async def return_to_launch(self):
-        print("Returning to launch...")
+        print(f"Drone {self.id} returning to launch...")
         await self.system.action.return_to_launch()
-
-    async def land(self):
-        print("Landing...")
-        await self.system.action.land()
-
-    async def disarm(self):
-        print("Disarming...")
-        await self.system.action.disarm()
-
-    async def safe_land_and_disarm(self):
-        print("Landing...")
-        await self.system.action.land()
-
-        #check if drone is landed
-        async for landing_info in self.system.telemetry.landed_state():
-            if landing_info == telemetry.LandedState.ON_GROUND:
-                print("-- Drone has landed")
+        await self._wait_for_landed()
+        self.in_air = False
+    
+    async def _wait_for_landed(self):
+        async for state in self.system.telemetry.landed_state():
+            if state == telemetry.LandedState.ON_GROUND:
+                print(f"Drone {self.id} has landed")
                 break
-
+        
+    async def disarm(self):
+        print(f"Disarming drone {self.id}...")
         await self.system.action.disarm()
+        self.is_armed = False
+        self.in_air = False
 
-    async def print_status_text(self):
-        """
-        Prints the status text of the drone.
-
-        Args:
-            drone (Drone): The drone object.
-
-        Returns:
-            None
-        """
-        async for status in self.system.telemetry.status_text():
-            print(status.text)
-
-
-    async def run_goto(self, latitude_deg, longitude_deg, altitude_m, timeout=60):
+    async def run_goto(self, latitude_deg, longitude_deg, altitude_m):
         """
         Commands the drone to fly to a specified global position and altitude.
 
@@ -117,9 +191,6 @@ class Drone:
             None
         """
 
-        print("Running goto...")
-        await self.connect()
-
         print("Waiting for drone to have a global position estimate...")
         async for health in self.system.telemetry.health():
             if health.is_global_position_ok and health.is_home_position_ok:
@@ -133,34 +204,12 @@ class Drone:
 
         print(f"The detected altitude at home is {absolute_altitude} m from the ground")
 
-        print("-- Taking off")
-        await self.takeoff()
-
-        await asyncio.sleep(10)
-
         # To fly drone m above the ground plane
         flying_alt = absolute_altitude + altitude_m
-        print(f"-- Flying to {latitude_deg}, {longitude_deg}, {flying_alt}")
+        print(f"Drone {self.id} flying to position...")
         await self.system.action.goto_location(latitude_deg, longitude_deg, flying_alt, 0)
 
-        #while True:
-        #    print("Staying connected, press Ctrl-C to exit")
-        #    await asyncio.sleep(1)
-
-        if timeout > 0:
-            print("-- Starting a timer for %s seconds" % timeout)
-            await asyncio.sleep(timeout)
-
-            print("-- Landing")
-            await self.return_to_launch()
-
-            #check if drone is landed
-            async for landing_info in self.system.telemetry.landed_state():
-                if landing_info == telemetry.LandedState.ON_GROUND:
-                    print("-- Drone has landed")
-                    break
-
-    async def run_orbit(self, radius_m=30, velocity_ms=2, relative_altitude=10, timeout=60, latitude_deg=0, longitude_deg=0):
+    async def run_orbit(self, radius_m=30, velocity_ms=2, relative_altitude=10, latitude_deg=0, longitude_deg=0, yaw_behavior=OrbitYawBehavior.HOLD_FRONT_TO_CIRCLE_CENTER):
         """
         Runs an orbit mission for the drone.
 
@@ -174,9 +223,6 @@ class Drone:
             None
         """
 
-        print("Running orbit...")
-        await self.connect()
-
         print("Waiting for drone to have a global position estimate...")
         async for health in self.system.telemetry.health():
             if health.is_global_position_ok and health.is_home_position_ok:
@@ -185,11 +231,6 @@ class Drone:
 
         position = await self.system.telemetry.position().__aiter__().__anext__()
         orbit_height = position.absolute_altitude_m+relative_altitude
-        yaw_behavior = OrbitYawBehavior.HOLD_FRONT_TO_CIRCLE_CENTER
-
-        await self.takeoff()
-
-        await asyncio.sleep(10)
 
         print("-- Orbiting")
         print(f"Do orbit at {orbit_height} m height from the ground")
@@ -208,47 +249,61 @@ class Drone:
                                         longitude_deg=longitude_deg,
                                         absolute_altitude_m=orbit_height)
 
-        await asyncio.sleep(timeout)
+    def __str__(self):
+        return (f"Drone {self.id}: Connected: {self.is_connected}, Armed: {self.is_armed}, "
+                f"In Air: {self.in_air}, Position: ({self.latitude}, {self.longitude}, {self.absolute_altitude}, {self.relative_altitude})")
 
-        print("-- Landing")
-        await self.return_to_launch()
+    def print_status(self):
+        print(str(self))
 
-        #check if drone is landed
-        async for landing_info in self.system.telemetry.landed_state():
-            if landing_info == telemetry.LandedState.ON_GROUND:
-                print("-- Drone has landed")
-                break
+    async def print_status_text(self):
+        async for status in self.system.telemetry.status_text():
+            print(f"Drone {self.id} status: {status.text}")
 
+    def __del__(self):
+        print(f"Drone {self.id} object is being destroyed")
+
+# Handle Ctrl+C interrupt -----------------------------------------------------
+# TODO: Implement a proper way to stop the drone when the user presses Ctrl+C
 def handle_interrupt(signal, frame):
     print("Ctrl+C pressed. Stopping the drone...")
     #TODO deal with stopping the drone
 
 signal.signal(signal.SIGINT, handle_interrupt)
+# ------------------------------------------------------------------------------
 
-if __name__ == '__main__':
+async def main():
     config = read_config()
-    drone = Drone(grpc_portbase=config['GRPC_PORT_BASE'],
+    drone = Drone(0, grpc_portbase=config['GRPC_PORT_BASE'],
                   connection_type=config['Connection_type'],
                   server_address=config['Server_host_address'],
                   portbase=config['Connection_port'])
 
-    #--- to run single operations:
-    #await drone.connect()
-    #await drone.arm()
-    #await drone.takeoff()
+    await drone.connect()
+    # ensure_future() schedules the execution of the coroutine in the event loop - to run concurrently - to have the getter methods updated continuously
+    asyncio.ensure_future(drone._start_state_monitoring()) # print_status=True to print the status continuously
+    await asyncio.sleep(1)
+    await drone.takeoff()
+    print(drone.get_position())
+    await asyncio.sleep(8)
+    await drone.run_goto(47.397606, 9.543060, 20)
+    await asyncio.sleep(20)
+    print(drone.get_position())
+    await drone.land()
 
-    #--- to run a sequence of operations / tasks:
-    #asyncio.run(drone.run_goto(47.397606, 8.543060, 20, 20))
+    await asyncio.sleep(2)
+    del drone
 
+if __name__ == '__main__':
     #--- to run an orbit mission:
     #asyncio.run(drone.run_orbit())
     #asyncio.run(drone.run_orbit(latitude_deg=47.397606, longitude_deg=8.543060))
 
     #--- to run a goto mission:
-    asyncio.run(drone.run_goto(47.397606, 8.543060, 20, 20))
+    #asyncio.run(drone.run_goto(47.397606, 8.543060, 20, 20))
 
     #--- to stop the event loop
     #asyncio.get_event_loop().stop()
     #asyncio.get_event_loop().close()
 
-    del drone
+    asyncio.run(main())
