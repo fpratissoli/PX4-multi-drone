@@ -45,13 +45,13 @@ PX4_gazebo_path="${PX4_gazebo_path/\~/$HOME}"
 gnome-terminal --tab -- bash -c "PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL=x500 $PX4_gazebo_path -i 1; exec bash"
 
 # Sleep for a moment to allow the first command to start
-#sleep 8
+sleep 8
 
 # Open a new terminal and execute Command 2
 # PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE="0,1" PX4_GZ_MODEL=x500 ./px4 -i 2
-#gnome-terminal --tab -- bash -c "PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE=\"0,1\" PX4_GZ_MODEL=x500 $PX4_gazebo_path -i 2; exec bash"
+gnome-terminal --tab -- bash -c "PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE=\"0,1\" PX4_GZ_MODEL=x500 $PX4_gazebo_path -i 2; exec bash"
 
-sleep 5
+sleep 8
 #Start the mavsdk_servers for each drone
 
 # Create a for loop to iterate from 0 to num_agents
