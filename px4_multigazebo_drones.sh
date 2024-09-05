@@ -39,6 +39,10 @@ fi
 # Path to PX4 Gazebo (ensure this is correctly set in your environment)
 PX4_gazebo_path="${PX4_gazebo_path/\~/$HOME}"
 
+# Start the Gazebo Simulator
+gnome-terminal --tab -- bash -c "python3 simulation-gazebo"
+sleep 3
+
 # Distance between agents (in meters)
 AGENT_DISTANCE=5  # Change this to adjust the spacing between agents
 
@@ -75,7 +79,7 @@ done
 echo "Launched $NUM_DRONES PX4 instances."
 
 # Create a for loop to iterate from 0 to num_agents
-for ((i = 0; i < NUM_DRONES; i++)); do
+for ((i = 1; i <= NUM_DRONES; i++)); do
   # Start each process in the background
   echo "Started mavsdk_server for drone $i at GRPC port $((GRPC_PORT_BASE+i)) and UDP port $((UDP_PORT_BASE+i))"
   (./px4_mavsdk_server.sh $((GRPC_PORT_BASE+i)) $((UDP_PORT_BASE+i))) &
