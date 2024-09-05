@@ -249,10 +249,11 @@ class Drone:
                                         absolute_altitude_m=orbit_height)
 
     def __str__(self):
-        return (f"Drone {self.id}: Connected: {self.is_connected}, Armed: {self.is_armed}, "
-            f"In Air: {self.in_air}, Position: ({self.latitude}, {self.longitude}, {self.absolute_altitude}, {self.relative_altitude}), "
+        return (f"Drone {self.id}: Connected: {self.is_connected}, "
             f"Connection Type: {self.connection_type}, Server Address: {self.server_address}, Port Base: {self.portbase}, "
-            f"gRPC Port Base: {self.grpc_portbase}")
+            f"gRPC Port Base: {self.grpc_portbase}, Armed: {self.is_armed}, "
+            f"In Air: {self.in_air}, Position: ({self.latitude}, {self.longitude}, {self.absolute_altitude}, {self.relative_altitude}), "
+            )
 
     def print_internal_status(self):
         print(str(self))
