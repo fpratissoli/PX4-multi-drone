@@ -61,7 +61,7 @@ class DroneSwarm:
 
 async def run_swarm_mission(swarm):
     await swarm.connect_all()
-    await asyncio.sleep(10)    
+    await asyncio.sleep(4)    
     await swarm.takeoff_all()
     await asyncio.sleep(10)
     
@@ -72,19 +72,17 @@ async def run_swarm_mission(swarm):
         (47.397806, 8.543260, 30),
         # Add more coordinates for additional drones
     ]
-    #await swarm.run_goto_formation(formation_coords)
-    #await asyncio.sleep(30)
+    await swarm.run_goto_formation(formation_coords)
+    await asyncio.sleep(30)
     
     # Example orbit formation
     #await swarm.run_orbit_formation(47.397606, 8.543060, 50, 30)
     #await asyncio.sleep(60)
     
-    #await swarm.return_to_launch_all()
-    #await asyncio.sleep(30)
+    await swarm.return_to_launch_all()
+    await asyncio.sleep(30)
 
     await swarm.land_all()
-    
-    swarm.print_all_internal_statuses()
 
 async def main():
     config = read_config()
