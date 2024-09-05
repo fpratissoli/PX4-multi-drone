@@ -4,7 +4,6 @@ from mavsdk import System
 from mavsdk.action import OrbitYawBehavior
 from mavsdk import telemetry
 import json
-import signal
 
 
 def read_config():
@@ -251,12 +250,14 @@ class Drone:
 
     def __str__(self):
         return (f"Drone {self.id}: Connected: {self.is_connected}, Armed: {self.is_armed}, "
-                f"In Air: {self.in_air}, Position: ({self.latitude}, {self.longitude}, {self.absolute_altitude}, {self.relative_altitude})")
+            f"In Air: {self.in_air}, Position: ({self.latitude}, {self.longitude}, {self.absolute_altitude}, {self.relative_altitude}), "
+            f"Connection Type: {self.connection_type}, Server Address: {self.server_address}, Port Base: {self.portbase}, "
+            f"gRPC Port Base: {self.grpc_portbase}")
 
-    def print_status(self):
+    def print_internal_status(self):
         print(str(self))
 
-    async def print_status_text(self):
+    async def print_status_updates(self):
         async for status in self.system.telemetry.status_text():
             print(f"Drone {self.id} status: {status.text}")
 
@@ -265,11 +266,11 @@ class Drone:
 
 # Handle Ctrl+C interrupt -----------------------------------------------------
 # TODO: Implement a proper way to stop the drone when the user presses Ctrl+C
-def handle_interrupt(signal, frame):
-    print("Ctrl+C pressed. Stopping the drone...")
-    #TODO deal with stopping the drone
+# def handle_interrupt(signal, frame):
+#     print("Ctrl+C pressed. Stopping the drone...")
+#     #TODO deal with stopping the drone
 
-signal.signal(signal.SIGINT, handle_interrupt)
+# signal.signal(signal.SIGINT, handle_interrupt)
 # ------------------------------------------------------------------------------
 
 async def main():
