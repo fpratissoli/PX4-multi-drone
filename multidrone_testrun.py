@@ -3,6 +3,53 @@ import math
 from drone_control import Drone
 from drone_control import read_config
 
+def global_to_local(global_lat, global_lon, global_alt, origin_lat, origin_lon, origin_alt):
+    """
+    Convert global coordinates to local coordinates.
+    
+    Args:
+    global_lat, global_lon, global_alt: Global coordinates to convert
+    origin_lat, origin_lon, origin_alt: Global coordinates of the origin point
+    
+    Returns:
+    x, y, z: Local coordinates
+    """
+    EARTH_RADIUS = 6378137.0  # Earth's radius in meters
+
+    d_lat = math.radians(global_lat - origin_lat)
+    d_lon = math.radians(global_lon - origin_lon)
+    
+    lat1 = math.radians(origin_lat)
+    lat2 = math.radians(global_lat)
+
+    x = EARTH_RADIUS * d_lon * math.cos((lat1 + lat2) / 2)
+    y = EARTH_RADIUS * d_lat
+    z = global_alt - origin_alt
+
+    return x, y, z
+
+def local_to_global(local_x, local_y, local_z, origin_lat, origin_lon, origin_alt):
+    """
+    Convert local coordinates to global coordinates.
+    
+    Args:
+    local_x, local_y, local_z: Local coordinates to convert
+    origin_lat, origin_lon, origin_alt: Global coordinates of the origin point
+    
+    Returns:
+    lat, lon, alt: Global coordinates
+    """
+    EARTH_RADIUS = 6378137.0  # Earth's radius in meters
+
+    d_lat = local_y / EARTH_RADIUS
+    d_lon = local_x / (EARTH_RADIUS * math.cos(math.radians(origin_lat)))
+
+    lat = origin_lat + math.degrees(d_lat)
+    lon = origin_lon + math.degrees(d_lon)
+    alt = origin_alt + local_z
+
+    return lat, lon, alt
+
 class DroneSwarm:
     def __init__(self, config):
         self.num_drones = config['NUM_DRONES']
@@ -16,8 +63,20 @@ class DroneSwarm:
                           portbase=config['Connection_port'] + i)
             self.alldrones.append(drone)
 
+            self.origin_lat = None
+            self.origin_lon = None
+            self.origin_alt = None
+
     async def connect_swarm(self):
         await asyncio.gather(*[drone.connect() for drone in self.alldrones])
+
+        # Set the origin to the home position of the first drone
+        # home = await self.drones[0].system.telemetry.home().__aiter__().__anext__()
+        # self.origin_lat = home.latitude_deg
+        # self.origin_lon = home.longitude_deg
+        # self.origin_alt = home.absolute_altitude_m
+        # print(f"Origin set to: {self.origin_lat}, {self.origin_lon}, {self.origin_alt}")
+
 
     async def takeoff_swarm(self):
         await asyncio.gather(*[drone.takeoff() for drone in self.alldrones])
