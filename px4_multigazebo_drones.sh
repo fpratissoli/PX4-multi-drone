@@ -36,23 +36,43 @@ else
 fi
 
 # Replace ~ with $HOME in the path
+# Path to PX4 Gazebo (ensure this is correctly set in your environment)
 PX4_gazebo_path="${PX4_gazebo_path/\~/$HOME}"
 
-#@TODO - Add a for loop to iterate from 0 to num_agents, opening a new terminal for each drone
+# Distance between agents (in meters)
+AGENT_DISTANCE=5  # Change this to adjust the spacing between agents
 
-# Open a new terminal and execute Command 1
-#PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL=x500 ./px4 -i 1 &
-gnome-terminal --tab -- bash -c "PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL=x500 $PX4_gazebo_path -i 1; exec bash"
+# Function to generate position randomly
+# generate_position() {
+#     x=$((RANDOM % 10))
+#     y=$((RANDOM % 10))
+#     z=$((RANDOM % 10))
+#     echo "$x $y $z"
+# }
 
-# Sleep for a moment to allow the first command to start
-sleep 8
+# Function to generate position based on index and distance
+generate_position() {
+    local index=$1
+    local distance=$2
+    local x=$(( (index % 3) * distance ))  # Arrange in a 3xN grid
+    local y=$(( (index / 3) * distance ))
+    echo "$x,$y"
+}
 
-# Open a new terminal and execute Command 2
-# PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE="0,1" PX4_GZ_MODEL=x500 ./px4 -i 2
-gnome-terminal --tab -- bash -c "PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE=\"0,1\" PX4_GZ_MODEL=x500 $PX4_gazebo_path -i 2; exec bash"
+# Launch agents
+for i in $(seq 1 $NUM_DRONES)
+do
+    position=$(generate_position $((i-1)) $AGENT_DISTANCE)
+    cmd="PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE=\"$position\" PX4_GZ_MODEL=x500 $PX4_gazebo_path -i $i; exec bash"
+    
+    echo "Launching agent $i at position $position"
+    gnome-terminal --tab -- bash -c "$cmd"
+    
+    # Sleep to allow each process to start (adjust if needed)
+    sleep 8
+done
 
-sleep 8
-#Start the mavsdk_servers for each drone
+echo "Launched $NUM_DRONES PX4 instances."
 
 # Create a for loop to iterate from 0 to num_agents
 for ((i = 0; i < NUM_DRONES; i++)); do
