@@ -9,5 +9,7 @@
   "TCP_PORT_BASE": 5760,
 
   "Connection_type": "UDP",
-  "NUM_DRONES": 3
+  "NUM_DRONES": 3,
+  "drone_deploy_distance": 5,
+  "Sim_Env": false
 }

@@ -9,6 +9,8 @@ if [ -f "$config_file" ]; then
     GRPC_PORT_BASE=$(jq -r '.GRPC_PORT_BASE' "$config_file")
     UDP_PORT_BASE=$(jq -r '.UDP_PORT_BASE' "$config_file")
     NUM_DRONES=$(jq -r '.NUM_DRONES' "$config_file")
+    sim_env=$(jq -r '.Sim_Env' "$config_file")
+    agent_distance=$(jq -r '.drone_deploy_distance' "$config_file")
 
     if [ -z "$PX4_gazebo_path" ]; then
         echo "PX4_gazebo_path is not defined in the configuration file."
@@ -30,6 +32,16 @@ if [ -f "$config_file" ]; then
         exit 1
     fi
 
+    if [ -z "$sim_env" ]; then
+        echo "Sim_Env is not defined in the configuration file."
+        exit 1
+    fi
+
+    if [ -z "$agent_distance" ]; then
+        echo "drone_deploy_distance is not defined in the configuration file."
+        exit 1
+    fi
+
 else
     echo "Configuration file not found: $config_file"
     exit 1
@@ -39,12 +51,17 @@ fi
 # Path to PX4 Gazebo (ensure this is correctly set in your environment)
 PX4_gazebo_path="${PX4_gazebo_path/\~/$HOME}"
 
-# Start the Gazebo Simulator
-#gnome-terminal --tab -- bash -c "python3 simulation-gazebo"
-#sleep 3
+# Start the Gazebo Simulator if the environment is set to true
+HEADLESS=1
+if [ "$sim_env" = "true" ]; then
+    echo "Starting Gazebo Simulator"
+    gnome-terminal --tab -- bash -c "python3 simulation-gazebo"
+    HEADLESS=0
+    sleep 3
+fi
 
 # Distance between agents (in meters)
-AGENT_DISTANCE=5  # Change this to adjust the spacing between agents
+AGENT_DISTANCE=$agent_distance  # Change this to adjust the spacing between agents
 
 # Function to generate position randomly
 # generate_position() {
@@ -67,7 +84,7 @@ generate_position() {
 for i in $(seq 1 $NUM_DRONES)
 do
     position=$(generate_position $((i-1)) $AGENT_DISTANCE)
-    cmd="HEADLESS=1 PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE=\"$position\" PX4_GZ_MODEL=x500 $PX4_gazebo_path -i $i; exec bash"
+    cmd="HEADLESS=$HEADLESS PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE=\"$position\" PX4_GZ_MODEL=x500 $PX4_gazebo_path -i $i; exec bash"
     
     echo "Launching agent $i at position $position"
     gnome-terminal --tab -- bash -c "$cmd"
