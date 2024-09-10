@@ -3,7 +3,7 @@ import math
 from drone_control import Drone
 from drone_control import read_config
 
-def global_to_local(global_lat, global_lon, global_alt, origin_lat, origin_lon, origin_alt):
+def global_to_local(global_lat, global_lon, global_alt, origin_lat, origin_lon, origin_alt=0):
     """
     Convert global coordinates to local coordinates.
     
@@ -28,7 +28,7 @@ def global_to_local(global_lat, global_lon, global_alt, origin_lat, origin_lon, 
 
     return x, y, z
 
-def local_to_global(local_x, local_y, local_z, origin_lat, origin_lon, origin_alt):
+def local_to_global(local_x, local_y, local_z, origin_lat, origin_lon, origin_alt=0):
     """
     Convert local coordinates to global coordinates.
     
@@ -63,20 +63,19 @@ class DroneSwarm:
                           portbase=config['Connection_port'] + i)
             self.alldrones.append(drone)
 
-            self.origin_lat = None
-            self.origin_lon = None
-            self.origin_alt = None
+        self.origin_lat = None
+        self.origin_lon = None
+        self.origin_alt = None
 
     async def connect_swarm(self):
         await asyncio.gather(*[drone.connect() for drone in self.alldrones])
 
         # Set the origin to the home position of the first drone
-        # home = await self.drones[0].system.telemetry.home().__aiter__().__anext__()
-        # self.origin_lat = home.latitude_deg
-        # self.origin_lon = home.longitude_deg
-        # self.origin_alt = home.absolute_altitude_m
-        # print(f"Origin set to: {self.origin_lat}, {self.origin_lon}, {self.origin_alt}")
-
+        home = await self.alldrones[0].system.telemetry.home().__aiter__().__anext__()
+        self.origin_lat = home.latitude_deg
+        self.origin_lon = home.longitude_deg
+        self.origin_alt = 0 #home.absolute_altitude_m
+        print(f"Origin set to: {self.origin_lat}, {self.origin_lon}, {self.origin_alt}")
 
     async def takeoff_swarm(self):
         await asyncio.gather(*[drone.takeoff() for drone in self.alldrones])
@@ -106,9 +105,8 @@ class DroneSwarm:
         await asyncio.gather(*tasks)
 
     async def run_goto_local(self, local_coords):
-        #TODO: not tested
         tasks = []
-        for drone, coords in zip(self.drones, local_coords):
+        for drone, coords in zip(self.alldrones, local_coords):
             x, y, z = coords
             lat, lon, alt = local_to_global(x, y, z, self.origin_lat, self.origin_lon, self.origin_alt)
             tasks.append(drone.run_goto(lat, lon, alt - self.origin_alt))  # alt is relative to origin
@@ -118,7 +116,7 @@ class DroneSwarm:
         #TODO: not tested
         center_lat, center_lon, _ = local_to_global(center_x, center_y, 0, self.origin_lat, self.origin_lon, self.origin_alt)
         tasks = []
-        for i, drone in enumerate(self.drones[:num_drones]):
+        for i, drone in enumerate(self.alldrones[:num_drones]):
             angle = (2 * math.pi * i) / num_drones
             x = center_x + (radius * math.cos(angle))
             y = center_y + (radius * math.sin(angle))
@@ -127,10 +125,10 @@ class DroneSwarm:
                                          latitude_deg=lat, longitude_deg=lon))
         await asyncio.gather(*tasks)
 
-    async def monitor_swarm(self):
-        #TODO: not tested
-        monitoring_tasks = [drone._start_state_monitoring() for drone in self.alldrones]
-        await asyncio.gather(*monitoring_tasks)
+    async def _monitor_swarm(self):
+        tasks = [asyncio.ensure_future(drone._start_state_monitoring()) for drone in self.alldrones]
+        await asyncio.gather(*tasks)
+        print("Monitoring started")
 
     def print_all_internal_statuses(self):
         for drone in self.alldrones:
@@ -140,7 +138,7 @@ async def run_swarm_mission(swarm):
     await swarm.connect_swarm()
     await asyncio.sleep(4)    
     await swarm.takeoff_swarm()
-    await asyncio.sleep(10)
+    await asyncio.sleep(4)
     
     # Example formation flight
     formation_coords = [
@@ -150,19 +148,19 @@ async def run_swarm_mission(swarm):
         # Add more coordinates for additional drones
     ]
 
-    await swarm.run_goto_formation(formation_coords)
-    await asyncio.sleep(30)
+    #await swarm.run_goto_formation(formation_coords)
+    #await asyncio.sleep(30)
 
     # Example formation flight using local coordinates
-    # local_formation_coords = [
-    #     (10, 0, 20),   # 10m east, 0m north, 20m up
-    #     (0, 10, 25),   # 0m east, 10m north, 25m up
-    #     (-10, 0, 30),  # 10m west, 0m north, 30m up
-    #     # Add more coordinates for additional drones
-    # ]
+    local_formation_coords = [
+        (-10, 0, 20),   # 10m east, 0m north, 20m up
+        (-10, 0, 30),   # 0m east, 10m north, 25m up
+        (-10, 0, 40),  # 10m west, 0m north, 30m up
+        # Add more coordinates for additional drones
+    ]
 
-    # await swarm.run_goto_local(local_formation_coords)
-    # await asyncio.sleep(30)
+    await swarm.run_goto_local(local_formation_coords)
+    await asyncio.sleep(30)
     
     # Example orbit formation
     #await swarm.run_orbit_formation(47.397606, 8.543060, 50, 30)
@@ -173,9 +171,10 @@ async def run_swarm_mission(swarm):
     #await asyncio.sleep(60)
     
     await swarm.return_swarm_to_launch()
-    await asyncio.sleep(30)
 
-    await swarm.land_swarm()
+    # Print coordinates of drone 0
+    #asyncio.ensure_future(swarm._monitor_swarm())
+    #await swarm.land_swarm()
 
 async def main():
     config = read_config()

@@ -40,8 +40,8 @@ fi
 PX4_gazebo_path="${PX4_gazebo_path/\~/$HOME}"
 
 # Start the Gazebo Simulator
-gnome-terminal --tab -- bash -c "python3 simulation-gazebo"
-sleep 3
+#gnome-terminal --tab -- bash -c "python3 simulation-gazebo"
+#sleep 3
 
 # Distance between agents (in meters)
 AGENT_DISTANCE=5  # Change this to adjust the spacing between agents
@@ -67,7 +67,7 @@ generate_position() {
 for i in $(seq 1 $NUM_DRONES)
 do
     position=$(generate_position $((i-1)) $AGENT_DISTANCE)
-    cmd="PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE=\"$position\" PX4_GZ_MODEL=x500 $PX4_gazebo_path -i $i; exec bash"
+    cmd="HEADLESS=1 PX4_SYS_AUTOSTART=4001 PX4_GZ_MODEL_POSE=\"$position\" PX4_GZ_MODEL=x500 $PX4_gazebo_path -i $i; exec bash"
     
     echo "Launching agent $i at position $position"
     gnome-terminal --tab -- bash -c "$cmd"

@@ -85,6 +85,10 @@ class Drone:
     def get_home_position(self):
         """Get the drone's home position."""
         return self.home_position
+    
+    async def get_coordinates(self):
+        async for position in self.system.telemetry.position():
+            return position.latitude_deg, position.longitude_deg, position.absolute_altitude_m, position.relative_altitude_m
 
     # --------------------------------------------------------------------------
 
