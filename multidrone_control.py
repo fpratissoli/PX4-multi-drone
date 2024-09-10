@@ -67,15 +67,23 @@ class DroneSwarm:
         self.origin_lon = None
         self.origin_alt = None
 
-    async def connect_swarm(self):
-        await asyncio.gather(*[drone.connect() for drone in self.alldrones])
+    def set_origin_coords(self, lat, lon, alt=0): # Set the origin to a specific point
+        self.origin_lat = lat
+        self.origin_lon = lon
+        self.origin_alt = alt
 
+    async def set_origin_to_home(self, drone_id=0):
         # Set the origin to the home position of the first drone
-        home = await self.alldrones[0].system.telemetry.home().__aiter__().__anext__()
+        home = await self.alldrones[drone_id].system.telemetry.home().__aiter__().__anext__()
         self.origin_lat = home.latitude_deg
         self.origin_lon = home.longitude_deg
         self.origin_alt = 0 #home.absolute_altitude_m
         print(f"Origin set to: {self.origin_lat}, {self.origin_lon}, {self.origin_alt}")
+
+    async def connect_swarm(self):
+        await asyncio.gather(*[drone.connect() for drone in self.alldrones])
+        if self.origin_lat is None or self.origin_lon is None:
+            await self.set_origin_to_home()
 
     async def takeoff_swarm(self):
         await asyncio.gather(*[drone.takeoff() for drone in self.alldrones])
