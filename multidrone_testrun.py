@@ -153,14 +153,24 @@ async def run_swarm_mission(swarm):
 
     # Example formation flight using local coordinates
     local_formation_coords = [
-        (-10, 0, 20),   # 10m east, 0m north, 20m up
-        (-10, 0, 30),   # 0m east, 10m north, 25m up
-        (-10, 0, 40),  # 10m west, 0m north, 30m up
+        (-10, 0, 20),   # 10m west, 0m north, 20m up
+        (-10, 0, 30),   # 10m west, 0m north, 30m up
+        (-10, 0, 40),  # 10m west, 0m north, 40m up
         # Add more coordinates for additional drones
     ]
 
     await swarm.run_goto_local(local_formation_coords)
-    await asyncio.sleep(30)
+    await asyncio.sleep(10)
+
+    local_formation_coords = [
+        (0, 10, 20),   # 10m east, 0m north, 20m up
+        (0, 10, 30),   # 0m east, 10m north, 25m up
+        (0, 10, 40),  # 10m west, 0m north, 30m up
+        # Add more coordinates for additional drones
+    ]
+
+    await swarm.run_goto_local(local_formation_coords)
+    await asyncio.sleep(10)
     
     # Example orbit formation
     #await swarm.run_orbit_formation(47.397606, 8.543060, 50, 30)
