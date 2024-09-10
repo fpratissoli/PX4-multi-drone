@@ -1,5 +1,5 @@
-# Drones and PX4
-## Initial SetUP
+# Multi-drone Control with Px4
+## Initial SetUp
 
 **Download the PX4 repo**
 ```
@@ -79,6 +79,6 @@ issue still open
 ```
 
 ## How to run a Multi-Vehicle Simulation
-
+To be updated
 
 
