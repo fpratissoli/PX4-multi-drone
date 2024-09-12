@@ -1,6 +1,6 @@
 {
   "PX4_gazebo_path": "~/WORKSPACE/PX4-Autopilot/build/px4_sitl_default/bin/px4",
-  "MavSdkServerPath": "repo_env/lib/python3.10/site-packages/mavsdk/bin/mavsdk_server",
+  "MavSdkServerPath": "env/lib/python3.10/site-packages/mavsdk/bin/mavsdk_server",
   "GRPC_PORT_BASE": 50051,
 
   "UDP_server_address": "0.0.0.0", 
@@ -10,6 +10,6 @@
 
   "Connection_type": "UDP",
   "NUM_DRONES": 3,
-  "drone_deploy_distance": 5,
+  "drone_deploy_distance": 10,
   "Sim_Env": false
 }
