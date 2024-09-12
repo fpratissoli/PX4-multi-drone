@@ -72,11 +72,22 @@ class DroneSwarm:
         self.origin_lon = lon
         self.origin_alt = alt
 
+        async def get_local_coords(self, drone_id):
+        drone = self.alldrones[drone_id]
+        position = await drone.get_coordinates()
+        local_coords = global_to_local(position.latitude_deg, position.longitude_deg, position.absolute_altitude_m,
+                               self.origin_lat, self.origin_lon, self.origin_alt)
+        return {
+            'x': local_coords[0],
+            'y': local_coords[1],
+            'z': local_coords[2]
+        }
+
     async def set_origin_to_home(self, drone_id=0):
         # Set the origin to the home position of the first drone
         home = await self.alldrones[drone_id].system.telemetry.home().__aiter__().__anext__()
-        self.origin_lat = home.latitude_deg
-        self.origin_lon = home.longitude_deg
+        self.origin_lat = home.latitude_deg - 0.00005
+        self.origin_lon = home.longitude_deg - 0.00005
         self.origin_alt = 0 #home.absolute_altitude_m
         print(f"Origin set to: {self.origin_lat}, {self.origin_lon}, {self.origin_alt}")
 
@@ -161,9 +172,9 @@ async def run_swarm_mission(swarm):
 
     # Example formation flight using local coordinates
     local_formation_coords = [
-        (-10, 0, 20),   # 10m west, 0m north, 20m up
-        (-10, 0, 30),   # 10m west, 0m north, 30m up
-        (-10, 0, 40),  # 10m west, 0m north, 40m up
+        (0, 0, 20),   # 10m west, 0m north, 20m up
+        (0, 0, 30),   # 10m west, 0m north, 30m up
+        (0, 0, 40),  # 10m west, 0m north, 40m up
         # Add more coordinates for additional drones
     ]
 
@@ -171,9 +182,9 @@ async def run_swarm_mission(swarm):
     await asyncio.sleep(10)
 
     local_formation_coords = [
-        (0, 10, 20),   # 10m east, 0m north, 20m up
-        (0, 10, 30),   # 0m east, 10m north, 25m up
-        (0, 10, 40),  # 10m west, 0m north, 30m up
+        (10, 10, 20),   # 10m east, 0m north, 20m up
+        (10, 10, 30),   # 0m east, 10m north, 25m up
+        (10, 10, 40),  # 10m west, 0m north, 30m up
         # Add more coordinates for additional drones
     ]
 

@@ -88,8 +88,8 @@ class Drone:
     
     async def get_coordinates(self):
         async for position in self.system.telemetry.position():
-            return position.latitude_deg, position.longitude_deg, position.absolute_altitude_m, position.relative_altitude_m
-
+            #return position.latitude_deg, position.longitude_deg, position.absolute_altitude_m, position.relative_altitude_m
+            return position
     # --------------------------------------------------------------------------
 
     async def connect(self):
