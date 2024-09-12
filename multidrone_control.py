@@ -72,7 +72,7 @@ class DroneSwarm:
         self.origin_lon = lon
         self.origin_alt = alt
 
-        async def get_local_coords(self, drone_id):
+    async def get_local_coords(self, drone_id):
         drone = self.alldrones[drone_id]
         position = await drone.get_coordinates()
         local_coords = global_to_local(position.latitude_deg, position.longitude_deg, position.absolute_altitude_m,
