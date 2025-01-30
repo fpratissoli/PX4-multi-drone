@@ -3,6 +3,7 @@ import mavsdk
 from mavsdk import System
 from mavsdk.action import OrbitYawBehavior
 from mavsdk import telemetry
+from mavsdk.mission import (MissionItem, MissionPlan)
 import json
 
 
@@ -252,6 +253,94 @@ class Drone:
                                         longitude_deg=longitude_deg,
                                         absolute_altitude_m=orbit_height)
 
+    async def execute_trajectory(self, points):
+        """
+        Executes a trajectory by uploading and starting a mission plan
+        defined by a sequence of points.
+
+        Args:
+            points (list): A list of tuples, where each tuple represents a point
+                        in the trajectory as (latitude, longitude, altitude_amsl_m).
+                        Altitude is in meters above mean sea level.
+        """
+        mission_items = []
+        for point in points:
+            #latitude, longitude, altitude_amsl_m = point
+            mission_items.append(MissionItem(point[0], # latitude
+                                             point[1], # longitude
+                                             point[2], # altitude
+                                             10,  # Speed (m/s)
+                                             True,  # is_fly_through
+                                             float('nan'),  # gimbal_pitch_degrees
+                                             float('nan'),  # gimbal_yaw_degrees
+                                             MissionItem.CameraAction.NONE,  # camera_action
+                                             float('nan'),  # loiter_time_s
+                                             float('nan'),  # camera_photo_interval_s
+                                             float('nan'),  # camera_photo_distance_m
+                                             float('nan'),  # camera_trigger_distance_m
+                                             float('nan'),  # vehicle_speed_m_s
+                                             MissionItem.VehicleAction.NONE)) # vehicle_action
+
+        mission_plan = MissionPlan(mission_items)
+        await self.system.mission.set_return_to_launch_after_mission(True)
+        
+        # await self.system.mission.upload_mission(mission_plan)
+        print("-- Uploading mission")
+        try:
+            await self.system.mission.upload_mission(mission_plan)
+        except Exception as e:
+            print(f"Error uploading mission: {e}")
+            return False
+
+        # await self.system.mission.start_mission()
+
+        print("Waiting for drone to have a global position estimate...")
+        async for health in self.system.telemetry.health():
+            if health.is_global_position_ok and health.is_home_position_ok:
+                print("-- Global position estimate OK")
+                break
+
+        print("-- Arming")
+        try:
+            await self.system.action.arm()
+        except Exception as e:
+            print(f"Error arming: {e}")
+            return False
+
+        print("-- Starting mission")
+        try:
+            await self.system.mission.start_mission()
+        except Exception as e:
+            print(f"Error starting mission: {e}")
+            return False
+
+        return True
+    
+    async def print_mission_progress(self):
+        """ Prints the mission progress during the mission. """
+        async for mission_progress in self.system.mission.mission_progress():
+            print(f"Mission progress: "
+                f"{mission_progress.current}/"
+                f"{mission_progress.total}")
+            
+    async def observe_is_in_air(self, running_tasks):
+        """ Monitors whether the drone is flying or not and returns after landing. """
+        was_in_air = False
+
+        async for is_in_air in self.system.telemetry.in_air():
+            if is_in_air:
+                was_in_air = is_in_air
+
+            if was_in_air and not is_in_air:
+                print("-- Landed!")
+                for task in running_tasks:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                return
+    
     def __str__(self):
         return (f"Drone {self.id}: Connected: {self.is_connected}, "
             f"Connection Type: {self.connection_type}, Server Address: {self.server_address}, Port Base: {self.portbase}, "
@@ -289,16 +378,42 @@ async def main():
     # ensure_future() schedules the execution of the coroutine in the event loop - to run concurrently - to have the getter methods updated continuously
     asyncio.ensure_future(drone._start_state_monitoring()) # print_status=True to print the status continuously
     await asyncio.sleep(1)
-    await drone.takeoff()
-    print(drone.get_position())
-    await asyncio.sleep(8)
-    await drone.run_goto(47.397606, 9.543060, 20)
-    await asyncio.sleep(20)
-    print(drone.get_position())
-    await drone.land()
 
-    await asyncio.sleep(2)
-    del drone
+    # await drone.takeoff()
+    # print(drone.get_position())
+    # await asyncio.sleep(8)
+    # await drone.run_goto(47.397606, 7.543060, 20)
+    # await asyncio.sleep(20)
+    # print(drone.get_position())
+    # await drone.run_goto(46.397606, 7.543060, 20)
+    # await asyncio.sleep(10)
+    # await drone.land()
+    # await asyncio.sleep(2)
+    # del drone
+
+    """ Main function to connect to the drone and execute a trajectory mission. """
+    # Define the trajectory points as (latitude, longitude, altitude_amsl_m)
+    trajectory_points = [
+        (47.398039859999997, 8.5455725400000002, 25),   # Point 1: Initial point (example coordinates)
+        (47.398036222362471, 8.5450146439425509, 25),   # Point 2
+        (47.397825620791885, 8.5450092830163271, 25),   # Point 3
+        (47.397820000000000, 8.5455725400000002, 25),   # Point 4
+        (47.398039859999997, 8.5455725400000002, 25)    # Point 5: Return to initial point
+    ]
+    print_mission_progress_task = asyncio.ensure_future(drone.print_mission_progress())
+    running_tasks = [print_mission_progress_task]
+    termination_task = asyncio.ensure_future(drone.observe_is_in_air(running_tasks))
+    
+    print("-- Executing mission")
+    mission_executed = await drone.execute_trajectory(trajectory_points)
+    if mission_executed:
+        await termination_task
+        print("-- Mission executed successfully")
+    else:
+        print("-- Mission execution failed")
+
+    # return to launch
+    await drone.return_to_launch()
 
 if __name__ == '__main__':
     #--- to run an orbit mission:
